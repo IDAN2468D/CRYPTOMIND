@@ -120,7 +120,13 @@ export async function getAutoTradeDecision(
             return JSON.parse(result.text) as TradeDecision;
         }
         throw new Error("No JSON response");
-    } catch (e) {
+    } catch (e: any) {
+        // Handle Rate Limits specifically (429)
+        if (e.message?.includes('429') || e.status === 429) {
+             console.warn("Gemini Rate Limit Hit - Skipping Auto-Trade turn");
+             return { decision: 'HOLD', amountUSD: 0, reason: "Rate Limit", confidence: 0 };
+        }
+        
         console.error("Auto-trade decision failed", e);
         return { decision: 'HOLD', amountUSD: 0, reason: "API Error", confidence: 0 };
     }

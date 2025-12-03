@@ -99,8 +99,8 @@ function App() {
           }
       };
 
-      // Run every 8 seconds
-      const timer = setInterval(runAutoTrade, 8000);
+      // Run every 30 seconds to avoid Rate Limits (Gemini Flash free tier constraints)
+      const timer = setInterval(runAutoTrade, 30000);
       return () => clearInterval(timer);
   }, [isAutoTrading, coins, wallet]);
 
