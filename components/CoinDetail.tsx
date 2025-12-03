@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, Activity, DollarSign, BarChart3, Globe, Clock, Wallet, TrendingUp, Maximize2, Info } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Brush } from 'recharts';
 import { Coin } from '../types';
 import { getCoinHistory, ChartDataPoint } from '../services/cryptoService';
 
@@ -85,7 +85,7 @@ export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade })
                 
                 <div>
                     <div className="flex items-baseline gap-3">
-                         <h1 className="text-5xl md:text-6xl font-mono font-bold text-white tracking-tighter">
+                         <h1 className="text-5xl md:text-6xl font-mono font-bold text-white tracking-tighter transition-all duration-100">
                             {formatCurrency(currentDisplayPrice)}
                          </h1>
                     </div>
@@ -94,7 +94,7 @@ export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade })
                             {isPositive ? <ArrowUpRight size={16} strokeWidth={2.5}/> : <ArrowDownRight size={16} strokeWidth={2.5}/>}
                             {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
                         </span>
-                        <span className="text-sm text-slate-500 font-medium">Past 24 Hours</span>
+                        <span className="text-sm text-slate-500 font-medium">Past 24 Hours {hoverData && <span className="text-primary ml-2 animate-pulse">(Hovering)</span>}</span>
                     </div>
                 </div>
 
@@ -114,9 +114,9 @@ export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade })
                         ></div>
                         {/* Current Price Marker */}
                         <div 
-                            className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_white] z-10"
+                            className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_10px_white] z-10 transition-all duration-300"
                             style={{
-                                left: `${Math.min(Math.max(((coin.current_price - coin.low_24h) / (coin.high_24h - coin.low_24h)) * 100, 0), 100)}%`
+                                left: `${Math.min(Math.max(((currentDisplayPrice - coin.low_24h) / (coin.high_24h - coin.low_24h)) * 100, 0), 100)}%`
                             }}
                         ></div>
                      </div>
@@ -165,6 +165,7 @@ export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade })
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart 
                                 data={historyData}
+                                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                                 onMouseMove={(e) => {
                                     if (e.activePayload && e.activePayload[0]) {
                                         setHoverData(e.activePayload[0].payload.price);
@@ -205,8 +206,10 @@ export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade })
                                     content={({ active, payload, label }) => {
                                         if (active && payload && payload.length) {
                                         return (
-                                            <div className="bg-slate-900/90 border border-white/10 p-3 rounded-lg shadow-2xl backdrop-blur-md">
-                                                <p className="text-slate-400 text-xs mb-1 font-mono">{label}</p>
+                                            <div className="bg-slate-900/90 border border-primary/20 p-3 rounded-lg shadow-2xl backdrop-blur-md">
+                                                <p className="text-slate-400 text-xs mb-1 font-mono flex items-center gap-1">
+                                                    <Clock size={10} /> {label}
+                                                </p>
                                                 <p className="text-white font-bold font-mono text-lg">
                                                     {formatCurrency(payload[0].value as number)}
                                                 </p>
@@ -224,6 +227,15 @@ export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade })
                                     fillOpacity={1} 
                                     fill="url(#colorPrice)" 
                                     activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }}
+                                />
+                                {/* Brush Component for Zooming and Panning */}
+                                <Brush 
+                                    dataKey="date" 
+                                    height={30} 
+                                    stroke="#8b5cf6" 
+                                    fill="#1e293b"
+                                    tickFormatter={() => ''}
+                                    travellerWidth={10}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>

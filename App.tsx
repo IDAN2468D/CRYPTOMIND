@@ -48,28 +48,34 @@ function App() {
   useEffect(() => {
       const tourCompleted = localStorage.getItem('nexus_tour_completed');
       if (!tourCompleted && !isLoading && coins.length > 0) {
-          setTimeout(() => {
-            introJs()
-                .setOptions({
+          const timer = setTimeout(() => {
+            try {
+                // Safety check for introJs
+                if (typeof introJs !== 'function') return;
+
+                const intro = introJs();
+                if (!intro) return;
+
+                intro.setOptions({
                     steps: [
                         {
                             title: "Welcome to CryptoMind",
                             intro: "Your advanced AI-powered crypto dashboard.",
                         },
                         {
-                            element: document.querySelector('[data-intro="ai-toggle"]'),
+                            element: document.querySelector('[data-intro="ai-toggle"]') || undefined,
                             title: "NEXUS-9 AI",
                             intro: "Toggle the AI Auto-Trader here to let NEXUS-9 trade autonomously based on volatility.",
                             position: 'bottom'
                         },
                         {
-                            element: document.querySelector('[data-intro="market-grid"]'),
+                            element: document.querySelector('[data-intro="market-grid"]') || undefined,
                             title: "Live Market",
                             intro: "Real-time market data. Click any coin for detailed charts and analysis.",
                             position: 'top'
                         },
                         {
-                            element: document.querySelector('[data-intro="portfolio-nav"]'),
+                            element: document.querySelector('[data-intro="portfolio-nav"]') || undefined,
                             title: "Portfolio Tracking",
                             intro: "Track your assets and net worth here.",
                             position: 'right'
@@ -83,7 +89,11 @@ function App() {
                 .onexit(() => localStorage.setItem('nexus_tour_completed', 'true'))
                 .oncomplete(() => localStorage.setItem('nexus_tour_completed', 'true'))
                 .start();
+            } catch (e) {
+                console.warn("Tour failed to start", e);
+            }
           }, 1500);
+          return () => clearTimeout(timer);
       }
   }, [isLoading, coins]);
 
