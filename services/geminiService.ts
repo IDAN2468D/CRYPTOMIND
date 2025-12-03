@@ -1,9 +1,15 @@
 import { GoogleGenAI, Content, Part, Schema, Type } from "@google/genai";
 import { Message, Role, Coin, PortfolioItem, TradeDecision } from '../types';
 
-// Initialize the client
-// The API key is injected via process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize the client lazily to avoid immediate crash if env is missing
+let aiInstance: GoogleGenAI | null = null;
+
+function getAiClient() {
+    if (!aiInstance) {
+        aiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    }
+    return aiInstance;
+}
 
 /**
  * Sends a message to Gemini and yields chunks of the response.
@@ -43,6 +49,7 @@ export async function* streamGeminiResponse(
   }
 
   try {
+    const ai = getAiClient();
     const result = await ai.models.generateContentStream({
       model: modelId,
       contents: contents,
@@ -112,6 +119,7 @@ export async function getAutoTradeDecision(
     };
 
     try {
+        const ai = getAiClient();
         const result = await ai.models.generateContent({
             model: modelId,
             contents: prompt,

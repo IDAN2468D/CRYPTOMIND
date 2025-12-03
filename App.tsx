@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChatInterface } from './components/ChatInterface';
-import { Activity, TrendingUp, DollarSign, Wallet, Menu, Search, X, ArrowUpRight, ArrowDownRight, CreditCard, RefreshCw, History, CheckCircle, Bot, ChevronRight, Play, Pause, Zap, BrainCircuit } from 'lucide-react';
+import { Activity, TrendingUp, DollarSign, Wallet, Menu, Search, X, ArrowUpRight, ArrowDownRight, CreditCard, RefreshCw, History, CheckCircle, Bot, ChevronRight, Play, Pause, Zap, BrainCircuit, ShieldAlert } from 'lucide-react';
 import { getMarketData } from './services/cryptoService';
 import { getAutoTradeDecision } from './services/geminiService';
 import { Coin, UserWallet, PortfolioItem, Transaction, TradeDecision } from './types';
@@ -451,6 +451,22 @@ function App() {
 
             {/* MARKET VIEW */}
             {!isLoading && activeView === 'market' && (
+                <>
+                {filteredCoins.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-4">
+                        <ShieldAlert size={48} className="text-slate-600 mb-2" />
+                        <h3 className="text-lg font-bold text-slate-300">Market Data Unavailable</h3>
+                        <p className="max-w-md text-center text-sm">
+                            Unable to fetch live crypto data. This may be due to API rate limits or connectivity issues.
+                        </p>
+                        <button 
+                            onClick={() => window.location.reload()}
+                            className="px-4 py-2 bg-primary/20 hover:bg-primary/30 text-primary rounded-lg text-sm font-bold transition-colors border border-primary/20"
+                        >
+                            Retry Connection
+                        </button>
+                    </div>
+                ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                     {filteredCoins.map((coin) => (
                         <div 
@@ -526,6 +542,8 @@ function App() {
                         </div>
                     ))}
                 </div>
+                )}
+                </>
             )}
 
             {/* PORTFOLIO VIEW */}
