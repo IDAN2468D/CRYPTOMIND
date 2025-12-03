@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChatInterface } from './components/ChatInterface';
+import { CoinDetail } from './components/CoinDetail';
 import { Activity, TrendingUp, DollarSign, Wallet, Menu, Search, X, ArrowUpRight, ArrowDownRight, CreditCard, RefreshCw, History, CheckCircle, Bot, ChevronRight, Play, Pause, Zap, BrainCircuit, ShieldAlert } from 'lucide-react';
 import { getMarketData } from './services/cryptoService';
 import { getAutoTradeDecision } from './services/geminiService';
 import { Coin, UserWallet, PortfolioItem, Transaction, TradeDecision } from './types';
+import introJs from 'intro.js';
 
 function App() {
   const [activeView, setActiveView] = useState<'market' | 'portfolio' | 'history'>('market');
@@ -38,22 +40,70 @@ function App() {
 
   // Trading Modal State
   const [selectedCoin, setSelectedCoin] = useState<Coin | null>(null);
+  const [viewingCoin, setViewingCoin] = useState<Coin | null>(null); // For Detailed View
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [tradeAmount, setTradeAmount] = useState(''); 
   
+  // Initialize Tour
+  useEffect(() => {
+      const tourCompleted = localStorage.getItem('nexus_tour_completed');
+      if (!tourCompleted && !isLoading && coins.length > 0) {
+          setTimeout(() => {
+            introJs()
+                .setOptions({
+                    steps: [
+                        {
+                            title: "Welcome to CryptoMind",
+                            intro: "Your advanced AI-powered crypto dashboard.",
+                        },
+                        {
+                            element: document.querySelector('[data-intro="ai-toggle"]'),
+                            title: "NEXUS-9 AI",
+                            intro: "Toggle the AI Auto-Trader here to let NEXUS-9 trade autonomously based on volatility.",
+                            position: 'bottom'
+                        },
+                        {
+                            element: document.querySelector('[data-intro="market-grid"]'),
+                            title: "Live Market",
+                            intro: "Real-time market data. Click any coin for detailed charts and analysis.",
+                            position: 'top'
+                        },
+                        {
+                            element: document.querySelector('[data-intro="portfolio-nav"]'),
+                            title: "Portfolio Tracking",
+                            intro: "Track your assets and net worth here.",
+                            position: 'right'
+                        }
+                    ],
+                    showProgress: true,
+                    showBullets: false,
+                    exitOnOverlayClick: false,
+                    overlayOpacity: 0.8
+                })
+                .onexit(() => localStorage.setItem('nexus_tour_completed', 'true'))
+                .oncomplete(() => localStorage.setItem('nexus_tour_completed', 'true'))
+                .start();
+          }, 1500);
+      }
+  }, [isLoading, coins]);
+
   // Fetch Data with Timer
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
         const data = await getMarketData();
-        if (data.length > 0) {
+        // Always set coins if we get an array, even if it's the mock data
+        if (Array.isArray(data) && data.length > 0) {
           setCoins(data);
+        } else {
+           console.error("Received invalid coin data structure");
         }
       } catch (error) {
-        console.error("Failed to load data", error);
+        console.error("Critical failure to load data", error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     loadData();
@@ -79,6 +129,8 @@ function App() {
           const randomIndex = Math.floor(Math.random() * Math.min(coins.length, 20)); // Top 20 coins
           const candidateCoin = coins[randomIndex];
           
+          if (!candidateCoin) return;
+
           setAiThinkingCoin(candidateCoin.id);
 
           // 2. Ask Gemini for decision
@@ -114,6 +166,7 @@ function App() {
 
   // Filter Coins
   const filteredCoins = useMemo(() => {
+    if (!coins) return [];
     return coins.filter(c => 
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       c.symbol.toLowerCase().includes(searchTerm.toLowerCase())
@@ -219,6 +272,14 @@ function App() {
     }
     executeTrade(selectedCoin, tradeType, amountUSD, false);
   };
+  
+  // Handle opening trade modal from detail view
+  const openTradeFromDetail = (type: 'buy' | 'sell') => {
+      if (viewingCoin) {
+          setSelectedCoin(viewingCoin);
+          setTradeType(type);
+      }
+  };
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
@@ -259,7 +320,7 @@ function App() {
                 ].map(item => (
                   <button
                     key={item.id}
-                    onClick={() => { setActiveView(item.id as any); setIsMobileMenuOpen(false); }}
+                    onClick={() => { setActiveView(item.id as any); setViewingCoin(null); setIsMobileMenuOpen(false); }}
                     className={`flex items-center justify-between p-4 rounded-xl transition-all ${activeView === item.id ? 'bg-primary/20 text-white border border-primary/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                      <div className="flex items-center gap-3">
@@ -286,21 +347,22 @@ function App() {
         </div>
         <nav className="flex flex-col gap-6 text-slate-500">
           <button 
-            onClick={() => setActiveView('market')}
+            onClick={() => { setActiveView('market'); setViewingCoin(null); }}
             className={`p-3 rounded-xl transition-all duration-300 ${activeView === 'market' ? 'text-white bg-primary/20 shadow-[0_0_20px_rgba(139,92,246,0.2)]' : 'hover:text-white hover:bg-white/5'}`}
             title="Market"
           >
             <TrendingUp size={20} />
           </button>
           <button 
-            onClick={() => setActiveView('portfolio')}
+            onClick={() => { setActiveView('portfolio'); setViewingCoin(null); }}
+            data-intro="portfolio-nav"
             className={`p-3 rounded-xl transition-all duration-300 ${activeView === 'portfolio' ? 'text-white bg-primary/20 shadow-[0_0_20px_rgba(139,92,246,0.2)]' : 'hover:text-white hover:bg-white/5'}`}
             title="Portfolio"
           >
             <Wallet size={20} />
           </button>
           <button 
-            onClick={() => setActiveView('history')}
+            onClick={() => { setActiveView('history'); setViewingCoin(null); }}
             className={`p-3 rounded-xl transition-all duration-300 ${activeView === 'history' ? 'text-white bg-primary/20 shadow-[0_0_20px_rgba(139,92,246,0.2)]' : 'hover:text-white hover:bg-white/5'}`}
             title="Transaction History"
           >
@@ -344,11 +406,12 @@ function App() {
              
              {/* Auto Trade Toggle */}
              <button 
+                data-intro="ai-toggle"
                 onClick={() => setIsAutoTrading(!isAutoTrading)}
                 className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 ${isAutoTrading ? 'bg-primary/20 border-primary/50 text-white shadow-[0_0_15px_rgba(139,92,246,0.3)]' : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'}`}
              >
                 {isAutoTrading ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                <span className="text-xs font-bold font-mono tracking-wide">{isAutoTrading ? 'AI ACTIVE' : 'START AI'}</span>
+                <span className="text-xs font-bold font-mono tracking-wide">{isAutoTrading ? 'NEXUS ACTIVE' : 'START NEXUS'}</span>
              </button>
 
              {/* Refresh Timer */}
@@ -385,52 +448,54 @@ function App() {
                 <div className="flex items-center gap-2">
                     <Zap size={12} className={aiThinkingCoin ? "animate-bounce text-yellow-400" : ""} />
                     {aiThinkingCoin 
-                        ? <span>Analyzing market data for <span className="font-bold text-white">{coins.find(c => c.id === aiThinkingCoin)?.symbol.toUpperCase()}</span>...</span> 
-                        : <span>Scanning top 20 assets for opportunities...</span>}
+                        ? <span>Calculating volatility index for <span className="font-bold text-white">{coins.find(c => c.id === aiThinkingCoin)?.symbol.toUpperCase()}</span>...</span> 
+                        : <span>NEXUS-9 scanning market for arbitrage & breakdown...</span>}
                 </div>
-                {lastAutoTrade && <span className="hidden sm:inline opacity-70">Last Action: {lastAutoTrade}</span>}
+                {lastAutoTrade && <span className="hidden sm:inline opacity-70">Last Op: {lastAutoTrade}</span>}
             </div>
         )}
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-10 scroll-smooth pb-20 md:pb-8">
-          <div className="max-w-7xl mx-auto space-y-6 md:space-y-8">
+          <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 h-full">
             
-            {/* View Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-                <div className="space-y-1 md:space-y-2">
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-white drop-shadow-md">
-                        {activeView === 'market' && 'Live Market'}
-                        {activeView === 'portfolio' && 'Your Portfolio'}
-                        {activeView === 'history' && 'Transaction History'}
-                    </h2>
-                    <p className="text-sm md:text-base text-slate-400 font-medium">
-                        {activeView === 'market' && 'Real-time prices and trading execution.'}
-                        {activeView === 'portfolio' && 'Track your asset performance and allocation.'}
-                        {activeView === 'history' && 'A ledger of your past trading activities.'}
-                    </p>
-                </div>
-                
-                {activeView === 'market' && (
-                    <div className="relative w-full sm:w-64 group">
-                        <input 
-                            type="text" 
-                            placeholder="Search coins..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-primary/50 focus:bg-white/10 text-white transition-all shadow-inner"
-                        />
-                        <Search className="absolute left-3 top-3 text-slate-500 group-focus-within:text-primary transition-colors" size={16} />
+            {/* View Header (Only show if NOT in detailed view) */}
+            {!viewingCoin && (
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+                    <div className="space-y-1 md:space-y-2">
+                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-white drop-shadow-md">
+                            {activeView === 'market' && 'Live Market'}
+                            {activeView === 'portfolio' && 'Your Portfolio'}
+                            {activeView === 'history' && 'Transaction History'}
+                        </h2>
+                        <p className="text-sm md:text-base text-slate-400 font-medium">
+                            {activeView === 'market' && 'Real-time prices and trading execution.'}
+                            {activeView === 'portfolio' && 'Track your asset performance and allocation.'}
+                            {activeView === 'history' && 'A ledger of your past trading activities.'}
+                        </p>
                     </div>
-                )}
-            </div>
+                    
+                    {activeView === 'market' && (
+                        <div className="relative w-full sm:w-64 group">
+                            <input 
+                                type="text" 
+                                placeholder="Search coins..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-primary/50 focus:bg-white/10 text-white transition-all shadow-inner"
+                            />
+                            <Search className="absolute left-3 top-3 text-slate-500 group-focus-within:text-primary transition-colors" size={16} />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Mobile Auto-Trade Banner (Only visible on mobile if inactive) */}
-            {!isAutoTrading && activeView === 'market' && (
+            {!isAutoTrading && activeView === 'market' && !viewingCoin && (
                 <div className="md:hidden bg-gradient-to-r from-primary/10 to-secondary/10 border border-primary/20 rounded-xl p-4 flex items-center justify-between">
                     <div>
-                        <h3 className="font-bold text-sm text-white flex items-center gap-2"><BrainCircuit size={16}/> AI Auto-Trader</h3>
-                        <p className="text-xs text-slate-400 mt-1">Let Gemini analyze and trade autonomously.</p>
+                        <h3 className="font-bold text-sm text-white flex items-center gap-2"><BrainCircuit size={16}/> NEXUS-9 Auto-Trader</h3>
+                        <p className="text-xs text-slate-400 mt-1">Activate autonomous volatility trading.</p>
                     </div>
                     <button 
                         onClick={() => setIsAutoTrading(true)}
@@ -452,7 +517,13 @@ function App() {
             {/* MARKET VIEW */}
             {!isLoading && activeView === 'market' && (
                 <>
-                {filteredCoins.length === 0 ? (
+                {viewingCoin ? (
+                    <CoinDetail 
+                        coin={viewingCoin} 
+                        onBack={() => setViewingCoin(null)} 
+                        onTrade={openTradeFromDetail}
+                    />
+                ) : filteredCoins.length === 0 && !searchTerm ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-4">
                         <ShieldAlert size={48} className="text-slate-600 mb-2" />
                         <h3 className="text-lg font-bold text-slate-300">Market Data Unavailable</h3>
@@ -467,12 +538,13 @@ function App() {
                         </button>
                     </div>
                 ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6" data-intro="market-grid">
                     {filteredCoins.map((coin) => (
                         <div 
                             key={coin.id} 
+                            onClick={() => setViewingCoin(coin)}
                             className={`
-                                group relative overflow-hidden rounded-2xl border p-5 backdrop-blur-xl transition-all duration-300 ease-out will-change-transform
+                                cursor-pointer group relative overflow-hidden rounded-2xl border p-5 backdrop-blur-xl transition-all duration-300 ease-out will-change-transform
                                 ${aiThinkingCoin === coin.id 
                                     ? 'border-primary/60 bg-primary/10 shadow-[0_0_30px_rgba(139,92,246,0.25)] scale-[1.03] ring-1 ring-primary/30' 
                                     : 'border-white/5 bg-gradient-to-br from-white/[0.05] via-white/[0.01] to-black/20 hover:border-primary/40 hover:bg-slate-800/80 hover:scale-[1.03] hover:shadow-[0_0_35px_-5px_rgba(139,92,246,0.4)] hover:ring-1 hover:ring-primary/20'
@@ -526,13 +598,13 @@ function App() {
                                 </div>
                                 <div className="flex gap-2 w-full sm:w-auto opacity-80 group-hover:opacity-100 transition-opacity delay-75">
                                     <button 
-                                        onClick={() => { setSelectedCoin(coin); setTradeType('buy'); }}
+                                        onClick={(e) => { e.stopPropagation(); setSelectedCoin(coin); setTradeType('buy'); }}
                                         className="flex-1 sm:flex-none px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold transition-all uppercase tracking-wider hover:shadow-[0_0_15px_rgba(52,211,153,0.3)] hover:-translate-y-0.5"
                                     >
                                         Buy
                                     </button>
                                     <button 
-                                        onClick={() => { setSelectedCoin(coin); setTradeType('sell'); }}
+                                        onClick={(e) => { e.stopPropagation(); setSelectedCoin(coin); setTradeType('sell'); }}
                                         className="flex-1 sm:flex-none px-4 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition-all uppercase tracking-wider hover:shadow-[0_0_15px_rgba(244,63,94,0.3)] hover:-translate-y-0.5"
                                     >
                                         Sell

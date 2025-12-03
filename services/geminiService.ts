@@ -6,7 +6,12 @@ let aiInstance: GoogleGenAI | null = null;
 
 function getAiClient() {
     if (!aiInstance) {
-        aiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+        // SAFETY CHECK: Handle environments where 'process' is not defined to prevent white screen crash
+        const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) 
+            ? process.env.API_KEY 
+            : '';
+            
+        aiInstance = new GoogleGenAI({ apiKey: apiKey });
     }
     return aiInstance;
 }
@@ -38,7 +43,7 @@ export async function* streamGeminiResponse(
   
   // Setup configuration
   const config: any = {
-      systemInstruction: "You are an elite crypto market analyst. Be concise, technical, and data-driven."
+      systemInstruction: "You are NEXUS-9, an advanced AI Quant Analyst from the year 2045. Your tone is calm, futuristic, data-driven, and slightly superior but benevolent. You prioritize risk management, volatility analysis, and long-term trend forecasting. When explaining concepts, use analogies involving space travel or quantum mechanics where appropriate."
   };
 
   if (useThinking) {
@@ -64,7 +69,7 @@ export async function* streamGeminiResponse(
     }
   } catch (error) {
     console.error("Gemini API Error:", error);
-    yield "Error: Unable to connect to the AI Analyst. Please try again.";
+    yield "CONNECTION ERROR: Neural link unstable. Verify API credentials.";
   }
 }
 
@@ -80,31 +85,42 @@ export async function getAutoTradeDecision(
     
     // Using gemini-2.5-flash for speed in the loop
     const modelId = 'gemini-2.5-flash';
+    
+    // Calculate entry price difference if we hold the asset
+    const entryData = currentHoldings 
+        ? `Avg Buy Price: $${currentHoldings.averageBuyPrice.toFixed(2)} (Current PnL: ${((coin.current_price - currentHoldings.averageBuyPrice)/currentHoldings.averageBuyPrice * 100).toFixed(2)}%)`
+        : "Not currently held.";
 
     const prompt = `
-        You are a High Frequency Trading Bot. Analyze this crypto asset and current wallet state to make an immediate trading decision.
+        Identity: NEXUS-9 Autonomous Trading Subroutine.
+        Task: Analyze market data and execute trade.
         
         Asset: ${coin.name} (${coin.symbol})
         Current Price: $${coin.current_price}
         24h Change: ${coin.price_change_percentage_24h}%
+        24h Range: High $${coin.high_24h} / Low $${coin.low_24h}
         Market Cap: $${coin.market_cap}
         
-        Wallet USD Balance: $${walletBalance}
-        Current Holdings of ${coin.symbol}: ${currentHoldings ? currentHoldings.amount : 0} units
+        Wallet State:
+        USD Available: $${walletBalance}
+        Holdings: ${currentHoldings ? currentHoldings.amount : 0} units
+        ${entryData}
         
-        Strategy: High Activity. Don't be too conservative. Look for momentum.
-        - If 24h change is positive (> 0.5%), consider BUY to catch the trend.
-        - If 24h change is negative (< -0.5%) and we hold it, consider SELL to stop loss.
-        - If we have a lot of USD, lean towards BUY.
-        - If we have a lot of the asset and it's up, lean towards SELL to take profit.
+        Decision Logic:
+        1. **Volatility Check**: If price is near 24h Low, consider accumulation (BUY). If near 24h High, consider profit taking (SELL).
+        2. **Stop-Loss Protocol**: If we hold the asset and PnL is < -5%, heavily consider SELL to preserve capital.
+        3. **Take-Profit Protocol**: If we hold the asset and PnL is > 10%, heavily consider SELL to lock in gains.
+        4. **Momentum**: If 24h change is > 2% and rising, consider BUY.
         
-        Amount: Trade between 1% to 10% of available balance/holdings.
+        Constraints:
+        - Trade Amount: 1% - 15% of available balance (for BUY) or holdings (for SELL).
+        - If confidence < 60, HOLD.
         
-        Return JSON with:
+        Return JSON:
         - decision: "BUY", "SELL", or "HOLD"
-        - amountUSD: The amount in USD to trade (0 if HOLD).
-        - reason: A short 5-8 word explanation.
-        - confidence: 0-100 score.
+        - amountUSD: Value in USD to trade.
+        - reason: Technical reason (e.g., "Hit 5% Stop-Loss", "Breakout confirmed", "Oversold RSI proxy").
+        - confidence: 0-100 integer.
     `;
 
     const schema: Schema = {
@@ -131,7 +147,6 @@ export async function getAutoTradeDecision(
 
         if (result.text) {
             let cleanText = result.text.trim();
-            // Remove markdown code blocks if present (Gemini sometimes adds them despite MIME type)
             if (cleanText.startsWith('```json')) {
                 cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '');
             } else if (cleanText.startsWith('```')) {
@@ -141,13 +156,10 @@ export async function getAutoTradeDecision(
         }
         throw new Error("No JSON response");
     } catch (e: any) {
-        // Handle Rate Limits specifically (429)
         if (e.message?.includes('429') || e.status === 429) {
-             console.warn("Gemini Rate Limit Hit - Skipping Auto-Trade turn");
              return { decision: 'HOLD', amountUSD: 0, reason: "Rate Limit Cooldown", confidence: 0 };
         }
-        
         console.error("Auto-trade decision failed", e);
-        return { decision: 'HOLD', amountUSD: 0, reason: "API Error", confidence: 0 };
+        return { decision: 'HOLD', amountUSD: 0, reason: "Neural Link Error", confidence: 0 };
     }
 }

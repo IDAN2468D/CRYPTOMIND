@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, BrainCircuit, Info, X, Lightbulb, TrendingUp, ShieldAlert, BarChart3 } from 'lucide-react';
+import { Send, Bot, User, Sparkles, BrainCircuit, Info, X, Lightbulb, TrendingUp, ShieldAlert, BarChart3, Trash2 } from 'lucide-react';
 import { Message, Role } from '../types';
 import { streamGeminiResponse } from '../services/geminiService';
 import { ThinkingIndicator } from './ThinkingIndicator';
@@ -13,7 +13,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
     {
       id: 'welcome',
       role: Role.MODEL,
-      text: "Greetings. I am your AI Market Analyst. I can analyze trends, explain complex crypto concepts, or simulate market scenarios. Enable 'Deep Thought' for complex queries.",
+      text: "System Online. I am NEXUS-9. My processing core is calibrated for advanced market prediction and volatility analysis. How may I assist your portfolio today?",
       timestamp: Date.now(),
       isThinking: false
     }
@@ -24,6 +24,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load History
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('nexus9_chat_history');
+    if (savedHistory) {
+        try {
+            const parsed = JSON.parse(savedHistory);
+            if (parsed.length > 0) setMessages(parsed);
+        } catch (e) {
+            console.error("Failed to load chat history", e);
+        }
+    }
+  }, []);
+
+  // Save History
+  useEffect(() => {
+    if (messages.length > 0) {
+        localStorage.setItem('nexus9_chat_history', JSON.stringify(messages));
+    }
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,23 +69,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
 
     const botMsgId = (Date.now() + 1).toString();
     
-    // Placeholder for streaming content
     setMessages(prev => [...prev, {
       id: botMsgId,
       role: Role.MODEL,
-      text: '', // Start empty
+      text: '', 
       timestamp: Date.now(),
       isThinking: isThinkingMode
     }]);
 
     try {
-      // Filter out empty messages or the placeholder we just added to avoid duplicating in history sent to API
       const historyForApi = messages.filter(m => m.id !== botMsgId);
-      
       const stream = streamGeminiResponse(historyForApi, userMsg.text, isThinkingMode);
       
       let fullText = '';
-      
       for await (const chunk of stream) {
         fullText += chunk;
         setMessages(prev => prev.map(msg => 
@@ -77,9 +93,19 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
       console.error("Streaming error", error);
     } finally {
       setIsLoading(false);
-      // Focus back on input for better UX
       setTimeout(() => inputRef.current?.focus(), 100);
     }
+  };
+
+  const handleClearHistory = () => {
+      setMessages([{
+        id: Date.now().toString(),
+        role: Role.MODEL,
+        text: "Memory Core Purged. Ready for new input.",
+        timestamp: Date.now(),
+        isThinking: false
+      }]);
+      localStorage.removeItem('nexus9_chat_history');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -100,48 +126,50 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
       {/* Header */}
       <div className="p-4 border-b border-surface/50 bg-background/95 backdrop-blur-md sticky top-0 z-10 flex justify-between items-center">
         <div className="flex items-center gap-3">
-          {/* Mobile Close Button */}
           {onClose && (
-            <button 
-              onClick={onClose}
-              className="md:hidden text-slate-400 hover:text-white transition-colors"
-            >
+            <button onClick={onClose} className="md:hidden text-slate-400 hover:text-white transition-colors">
               <X size={20} />
             </button>
           )}
           
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/50 text-primary">
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/50 text-primary animate-pulse-slow">
             <Bot size={18} />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-white">The Oracle</h2>
-            <p className="text-xs text-secondary font-mono">gemini-3-pro-preview</p>
+            <h2 className="text-sm font-bold text-white tracking-widest">NEXUS-9</h2>
+            <p className="text-[10px] text-secondary font-mono uppercase">AI Quant Analyst</p>
           </div>
         </div>
 
-        {/* Deep Think Toggle */}
-        <button
-          onClick={() => setIsThinkingMode(!isThinkingMode)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border ${
-            isThinkingMode 
-              ? 'bg-primary/20 border-primary text-primary shadow-[0_0_15px_rgba(139,92,246,0.3)]' 
-              : 'bg-surface border-slate-700 text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <BrainCircuit size={14} />
-          <span className="hidden sm:inline">{isThinkingMode ? 'Thinking ON' : 'Thinking OFF'}</span>
-          <span className="sm:hidden">{isThinkingMode ? 'ON' : 'OFF'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+            <button 
+                onClick={handleClearHistory} 
+                className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
+                title="Clear History"
+            >
+                <Trash2 size={14} />
+            </button>
+            <button
+            onClick={() => setIsThinkingMode(!isThinkingMode)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 border ${
+                isThinkingMode 
+                ? 'bg-primary/20 border-primary text-primary shadow-[0_0_15px_rgba(139,92,246,0.3)]' 
+                : 'bg-surface border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+            >
+            <BrainCircuit size={14} />
+            <span className="hidden sm:inline">{isThinkingMode ? 'Thinking' : 'Standard'}</span>
+            </button>
+        </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
         {messages.map((msg, idx) => (
           <div 
             key={msg.id} 
             className={`flex gap-3 ${msg.role === Role.USER ? 'flex-row-reverse' : 'flex-row'}`}
           >
-            {/* Avatar */}
             <div className={`
               w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center
               ${msg.role === Role.USER ? 'bg-slate-700 text-slate-300' : 'bg-primary/20 text-primary border border-primary/30'}
@@ -149,9 +177,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
               {msg.role === Role.USER ? <User size={16} /> : <Bot size={16} />}
             </div>
 
-            {/* Bubble */}
             <div className={`
-              max-w-[85%] rounded-2xl p-3.5 text-sm leading-relaxed whitespace-pre-wrap
+              max-w-[85%] rounded-2xl p-3.5 text-sm leading-relaxed whitespace-pre-wrap font-mono
               ${msg.role === Role.USER 
                 ? 'bg-surface border border-slate-700 text-slate-100 rounded-tr-sm' 
                 : 'bg-gradient-to-br from-surface to-background border border-primary/20 text-slate-200 rounded-tl-sm shadow-lg'}
@@ -192,10 +219,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isThinkingMode ? "Ask complex questions..." : "Ask about the market..."}
+            placeholder={isThinkingMode ? "Initiate complex query..." : "Ask NEXUS-9..."}
             className={`
               w-full bg-surface/50 text-white placeholder-slate-500 rounded-xl py-3 pl-4 pr-12 
-              border focus:outline-none transition-all duration-300 text-sm md:text-base
+              border focus:outline-none transition-all duration-300 text-sm md:text-base font-mono
               ${isThinkingMode 
                 ? 'border-primary/50 focus:border-primary focus:shadow-[0_0_20px_rgba(139,92,246,0.1)]' 
                 : 'border-slate-700 focus:border-slate-500'}
@@ -220,38 +247,29 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
           </button>
         </div>
         
-        {/* Quick Actions / Prompts */}
+        {/* Quick Actions */}
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button 
-                onClick={() => handleQuickPrompt('Analyze BTC Trend')}
+                onClick={() => handleQuickPrompt('Analyze current market volatility')}
                 className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-surface/50 border border-white/5 hover:border-primary/30 hover:bg-primary/10 transition-all text-xs text-slate-300 hover:text-white"
             >
                 <TrendingUp size={12} className="text-emerald-400" />
-                Analyze Trend
+                Analyze Volatility
             </button>
             <button 
-                onClick={() => handleQuickPrompt('Market Sentiment')}
+                onClick={() => handleQuickPrompt('Predict price action for next 24h')}
                 className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-surface/50 border border-white/5 hover:border-primary/30 hover:bg-primary/10 transition-all text-xs text-slate-300 hover:text-white"
             >
                 <BarChart3 size={12} className="text-secondary" />
-                Sentiment
+                Prediction
             </button>
             <button 
-                onClick={() => handleQuickPrompt('Risk Assessment')}
+                onClick={() => handleQuickPrompt('Evaluate portfolio risk exposure')}
                 className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-surface/50 border border-white/5 hover:border-primary/30 hover:bg-primary/10 transition-all text-xs text-slate-300 hover:text-white"
             >
                 <ShieldAlert size={12} className="text-rose-400" />
-                Risk Check
+                Risk Exposure
             </button>
-        </div>
-
-        <div className="mt-2 flex justify-center">
-            {isThinkingMode && (
-                <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                    <Info size={10} />
-                    <span>Using 32k token thinking budget.</span>
-                </p>
-            )}
         </div>
       </div>
     </div>

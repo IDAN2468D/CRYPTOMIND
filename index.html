@@ -6,6 +6,7 @@
     <title>CryptoMind AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/intro.js/minified/introjs.min.css">
     <script>
       tailwind.config = {
         theme: {
@@ -55,17 +56,43 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #64748b; 
       }
+      /* Intro.js Dark Theme Overrides */
+      .introjs-tooltip {
+        background-color: #1e293b;
+        color: #f8fafc;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      }
+      .introjs-arrow.top-right, .introjs-arrow.top { border-bottom-color: #1e293b; }
+      .introjs-arrow.bottom, .introjs-arrow.bottom-right { border-top-color: #1e293b; }
+      .introjs-arrow.left { border-right-color: #1e293b; }
+      .introjs-arrow.right { border-left-color: #1e293b; }
+      .introjs-button {
+        background: #334155;
+        color: white;
+        text-shadow: none;
+        border: 1px solid #475569;
+        border-radius: 4px;
+      }
+      .introjs-button:hover { background: #475569; color: white; }
+      .introjs-skipbutton { color: #94a3b8; }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react/": "https://esm.sh/react@18.3.1/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.395.0?external=react",
     "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
+    "clsx": "https://esm.sh/clsx",
+    "tailwind-merge": "https://esm.sh/tailwind-merge",
+    "intro.js": "https://esm.sh/intro.js@7.2.0"
   }
 }
 </script>
