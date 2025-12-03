@@ -87,7 +87,7 @@ function App() {
               const decision: TradeDecision = await getAutoTradeDecision(candidateCoin, wallet.usdBalance, holdings);
 
               if (decision.decision === 'HOLD') {
-                  // Do nothing, maybe log it if debugging
+                  setLastAutoTrade(`HOLD ${candidateCoin.symbol} - ${decision.reason}`);
               } else if (decision.amountUSD > 0) {
                   // Execute Trade
                   executeTrade(candidateCoin, decision.decision === 'BUY' ? 'buy' : 'sell', decision.amountUSD, true, decision.reason);
@@ -99,8 +99,8 @@ function App() {
           }
       };
 
-      // Run every 30 seconds to avoid Rate Limits (Gemini Flash free tier constraints)
-      const timer = setInterval(runAutoTrade, 30000);
+      // Run every 20 seconds
+      const timer = setInterval(runAutoTrade, 20000);
       return () => clearInterval(timer);
   }, [isAutoTrading, coins, wallet]);
 
@@ -458,8 +458,8 @@ function App() {
                             className={`
                                 group relative overflow-hidden rounded-2xl border p-5 backdrop-blur-xl transition-all duration-300 ease-out will-change-transform
                                 ${aiThinkingCoin === coin.id 
-                                    ? 'border-primary/60 bg-primary/10 shadow-[0_0_30px_rgba(139,92,246,0.25)] scale-[1.02] ring-1 ring-primary/30' 
-                                    : 'border-white/5 bg-gradient-to-br from-white/[0.05] via-white/[0.01] to-black/20 hover:border-primary/50 hover:bg-slate-800/80 hover:scale-[1.02] hover:shadow-[0_0_30px_-5px_rgba(139,92,246,0.3)] hover:ring-1 hover:ring-primary/30'
+                                    ? 'border-primary/60 bg-primary/10 shadow-[0_0_30px_rgba(139,92,246,0.25)] scale-[1.03] ring-1 ring-primary/30' 
+                                    : 'border-white/5 bg-gradient-to-br from-white/[0.05] via-white/[0.01] to-black/20 hover:border-primary/40 hover:bg-slate-800/80 hover:scale-[1.03] hover:shadow-[0_0_35px_-5px_rgba(139,92,246,0.4)] hover:ring-1 hover:ring-primary/20'
                                 }
                             `}
                         >
@@ -497,8 +497,14 @@ function App() {
                                     {formatCurrency(coin.current_price)}
                                 </div>
                             </div>
+
+                            {/* High / Low 24h Stats */}
+                            <div className="flex gap-4 mt-1 mb-2 text-[10px] font-mono text-slate-500 relative z-10">
+                                <span className="flex items-center gap-1"><span className="text-emerald-500/80">H:</span> {formatCurrency(coin.high_24h)}</span>
+                                <span className="flex items-center gap-1"><span className="text-rose-500/80">L:</span> {formatCurrency(coin.low_24h)}</span>
+                            </div>
                             
-                            <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between gap-2 md:gap-4 relative z-10">
+                            <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between gap-2 md:gap-4 relative z-10">
                                 <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden sm:block group-hover:text-slate-400 transition-colors">
                                     MCap ${(coin.market_cap / 1e9).toFixed(1)}B
                                 </div>

@@ -75,7 +75,7 @@ export async function getAutoTradeDecision(
     const modelId = 'gemini-2.5-flash';
 
     const prompt = `
-        Analyze this crypto asset and current wallet state to make a trading decision.
+        You are a High Frequency Trading Bot. Analyze this crypto asset and current wallet state to make an immediate trading decision.
         
         Asset: ${coin.name} (${coin.symbol})
         Current Price: $${coin.current_price}
@@ -85,13 +85,18 @@ export async function getAutoTradeDecision(
         Wallet USD Balance: $${walletBalance}
         Current Holdings of ${coin.symbol}: ${currentHoldings ? currentHoldings.amount : 0} units
         
-        Strategy: Moderate Risk. Buy dips, sell peaks. Do not spend more than 5% of available USD balance on a single trade.
-        If holding, consider selling if profit is likely or to stop loss.
+        Strategy: High Activity. Don't be too conservative. Look for momentum.
+        - If 24h change is positive (> 0.5%), consider BUY to catch the trend.
+        - If 24h change is negative (< -0.5%) and we hold it, consider SELL to stop loss.
+        - If we have a lot of USD, lean towards BUY.
+        - If we have a lot of the asset and it's up, lean towards SELL to take profit.
+        
+        Amount: Trade between 1% to 10% of available balance/holdings.
         
         Return JSON with:
         - decision: "BUY", "SELL", or "HOLD"
         - amountUSD: The amount in USD to trade (0 if HOLD).
-        - reason: A short 10-word explanation.
+        - reason: A short 5-8 word explanation.
         - confidence: 0-100 score.
     `;
 
@@ -117,14 +122,21 @@ export async function getAutoTradeDecision(
         });
 
         if (result.text) {
-            return JSON.parse(result.text) as TradeDecision;
+            let cleanText = result.text.trim();
+            // Remove markdown code blocks if present (Gemini sometimes adds them despite MIME type)
+            if (cleanText.startsWith('```json')) {
+                cleanText = cleanText.replace(/^```json/, '').replace(/```$/, '');
+            } else if (cleanText.startsWith('```')) {
+                cleanText = cleanText.replace(/^```/, '').replace(/```$/, '');
+            }
+            return JSON.parse(cleanText) as TradeDecision;
         }
         throw new Error("No JSON response");
     } catch (e: any) {
         // Handle Rate Limits specifically (429)
         if (e.message?.includes('429') || e.status === 429) {
              console.warn("Gemini Rate Limit Hit - Skipping Auto-Trade turn");
-             return { decision: 'HOLD', amountUSD: 0, reason: "Rate Limit", confidence: 0 };
+             return { decision: 'HOLD', amountUSD: 0, reason: "Rate Limit Cooldown", confidence: 0 };
         }
         
         console.error("Auto-trade decision failed", e);

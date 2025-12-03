@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, BrainCircuit, Info, X } from 'lucide-react';
+import { Send, Bot, User, Sparkles, BrainCircuit, Info, X, Lightbulb, TrendingUp, ShieldAlert, BarChart3 } from 'lucide-react';
 import { Message, Role } from '../types';
 import { streamGeminiResponse } from '../services/geminiService';
 import { ThinkingIndicator } from './ThinkingIndicator';
@@ -88,6 +88,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
       handleSendMessage();
     }
   };
+
+  const handleQuickPrompt = (text: string) => {
+      setInputValue(text);
+      inputRef.current?.focus();
+  }
 
   return (
     <div className="flex flex-col h-full bg-background border-l border-surface/50 w-full md:w-[450px] shadow-2xl relative overflow-hidden">
@@ -214,6 +219,32 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
             )}
           </button>
         </div>
+        
+        {/* Quick Actions / Prompts */}
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button 
+                onClick={() => handleQuickPrompt('Analyze BTC Trend')}
+                className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-surface/50 border border-white/5 hover:border-primary/30 hover:bg-primary/10 transition-all text-xs text-slate-300 hover:text-white"
+            >
+                <TrendingUp size={12} className="text-emerald-400" />
+                Analyze Trend
+            </button>
+            <button 
+                onClick={() => handleQuickPrompt('Market Sentiment')}
+                className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-surface/50 border border-white/5 hover:border-primary/30 hover:bg-primary/10 transition-all text-xs text-slate-300 hover:text-white"
+            >
+                <BarChart3 size={12} className="text-secondary" />
+                Sentiment
+            </button>
+            <button 
+                onClick={() => handleQuickPrompt('Risk Assessment')}
+                className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-surface/50 border border-white/5 hover:border-primary/30 hover:bg-primary/10 transition-all text-xs text-slate-300 hover:text-white"
+            >
+                <ShieldAlert size={12} className="text-rose-400" />
+                Risk Check
+            </button>
+        </div>
+
         <div className="mt-2 flex justify-center">
             {isThinkingMode && (
                 <p className="text-[10px] text-slate-500 flex items-center gap-1">
