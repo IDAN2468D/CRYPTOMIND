@@ -11,9 +11,12 @@
     "@google/genai": "latest",
     "lucide-react": "^0.395.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "intro.js": "^7.2.0",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
+    "@types/intro.js": "^5.1.5",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.3",
     "vite": "^5.4.1"
