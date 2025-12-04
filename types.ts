@@ -1,3 +1,4 @@
+
 export enum Role {
   USER = 'user',
   MODEL = 'model'
@@ -32,6 +33,9 @@ export interface Coin {
   total_volume: number;
   high_24h: number;
   low_24h: number;
+  sparkline_in_7d?: {
+    price: number[];
+  };
 }
 
 export interface PortfolioItem {
@@ -52,6 +56,7 @@ export interface Transaction {
   timestamp: number;
   isAutoTrade?: boolean;
   aiReason?: string;
+  aiConfidence?: number;
 }
 
 export interface UserWallet {
@@ -64,4 +69,13 @@ export interface TradeDecision {
   amountUSD: number;
   reason: string;
   confidence: number;
+}
+
+export interface PriceAlert {
+  id: string;
+  coinId: string;
+  symbol: string;
+  targetPrice: number;
+  condition: 'above' | 'below';
+  createdAt: number;
 }

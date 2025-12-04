@@ -1,17 +1,20 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChatInterface } from './components/ChatInterface';
 import { CoinDetail } from './components/CoinDetail';
-import { Activity, TrendingUp, DollarSign, Wallet, Menu, Search, X, ArrowUpRight, ArrowDownRight, CreditCard, RefreshCw, History, CheckCircle, Bot, ChevronRight, Play, Pause, Zap, BrainCircuit, ShieldAlert } from 'lucide-react';
+import { Activity, TrendingUp, DollarSign, Wallet, Menu, Search, X, ArrowUpRight, ArrowDownRight, CreditCard, RefreshCw, History, CheckCircle, Bot, ChevronRight, Play, Pause, Zap, BrainCircuit, ShieldAlert, Filter, Bell, PieChart as PieChartIcon, BellRing } from 'lucide-react';
 import { getMarketData } from './services/cryptoService';
 import { getAutoTradeDecision } from './services/geminiService';
-import { Coin, UserWallet, PortfolioItem, Transaction, TradeDecision } from './types';
+import { Coin, UserWallet, PortfolioItem, Transaction, TradeDecision, PriceAlert } from './types';
 import introJs from 'intro.js';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, LineChart, Line, Tooltip } from 'recharts';
 
 function App() {
   const [activeView, setActiveView] = useState<'market' | 'portfolio' | 'history'>('market');
   const [coins, setCoins] = useState<Coin[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'gainers' | 'losers'>('all');
   
   // Refresh Timer State
   const REFRESH_INTERVAL = 60;
@@ -43,6 +46,12 @@ function App() {
   const [viewingCoin, setViewingCoin] = useState<Coin | null>(null); // For Detailed View
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [tradeAmount, setTradeAmount] = useState(''); 
+
+  // Alerts State
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+  const [alertTargetCoin, setAlertTargetCoin] = useState<Coin | null>(null);
+  const [alertTargetPrice, setAlertTargetPrice] = useState('');
   
   // Initialize Tour
   useEffect(() => {
@@ -97,6 +106,37 @@ function App() {
       }
   }, [isLoading, coins]);
 
+  // Check Alerts Logic
+  const checkAlerts = (currentCoins: Coin[]) => {
+      if (priceAlerts.length === 0) return;
+
+      const triggeredAlerts: string[] = [];
+      const remainingAlerts = priceAlerts.filter(alert => {
+          const coin = currentCoins.find(c => c.id === alert.coinId);
+          if (!coin) return true; // Keep alert if coin data missing
+
+          let triggered = false;
+          if (alert.condition === 'above' && coin.current_price >= alert.targetPrice) {
+              triggered = true;
+              triggeredAlerts.push(`${coin.symbol.toUpperCase()} rose above $${alert.targetPrice}`);
+          } else if (alert.condition === 'below' && coin.current_price <= alert.targetPrice) {
+              triggered = true;
+              triggeredAlerts.push(`${coin.symbol.toUpperCase()} dropped below $${alert.targetPrice}`);
+          }
+
+          return !triggered; // Remove if triggered
+      });
+
+      if (triggeredAlerts.length > 0) {
+          setPriceAlerts(remainingAlerts);
+          setNotification({ 
+              message: `Alert: ${triggeredAlerts[0]}`, 
+              type: 'info' 
+          });
+          // Play a sound if we wanted to
+      }
+  };
+
   // Fetch Data with Timer
   useEffect(() => {
     const loadData = async () => {
@@ -106,6 +146,7 @@ function App() {
         // Always set coins if we get an array, even if it's the mock data
         if (Array.isArray(data) && data.length > 0) {
           setCoins(data);
+          checkAlerts(data);
         } else {
            console.error("Received invalid coin data structure");
         }
@@ -128,7 +169,7 @@ function App() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [priceAlerts]); // Re-bind interval when priceAlerts changes to ensure closure captures latest state
 
   // AUTO TRADING BOT LOOP
   useEffect(() => {
@@ -152,7 +193,7 @@ function App() {
                   setLastAutoTrade(`HOLD ${candidateCoin.symbol} - ${decision.reason}`);
               } else if (decision.amountUSD > 0) {
                   // Execute Trade
-                  executeTrade(candidateCoin, decision.decision === 'BUY' ? 'buy' : 'sell', decision.amountUSD, true, decision.reason);
+                  executeTrade(candidateCoin, decision.decision === 'BUY' ? 'buy' : 'sell', decision.amountUSD, true, decision.reason, decision.confidence);
               }
           } catch (e) {
               console.error("Auto trade loop error", e);
@@ -177,11 +218,19 @@ function App() {
   // Filter Coins
   const filteredCoins = useMemo(() => {
     if (!coins) return [];
-    return coins.filter(c => 
+    let result = coins.filter(c => 
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       c.symbol.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [coins, searchTerm]);
+
+    if (filterType === 'gainers') {
+        result = result.filter(c => c.price_change_percentage_24h > 0);
+    } else if (filterType === 'losers') {
+        result = result.filter(c => c.price_change_percentage_24h < 0);
+    }
+
+    return result;
+  }, [coins, searchTerm, filterType]);
 
   // Calculate Portfolio Value
   const portfolioValue = useMemo(() => {
@@ -193,8 +242,29 @@ function App() {
     return total;
   }, [wallet, coins]);
 
+  // Calculate Pie Chart Data
+  const pieChartData = useMemo(() => {
+      const data = [
+          { name: 'USD', value: wallet.usdBalance, color: '#64748b' } // Slate 500
+      ];
+      
+      const palette = ['#8b5cf6', '#06b6d4', '#f43f5e', '#10b981', '#f59e0b', '#ec4899']; // Violet, Cyan, Rose, Emerald, Amber, Pink
+
+      Object.values(wallet.assets).forEach((asset: PortfolioItem, index) => {
+          const coin = coins.find(c => c.id === asset.coinId);
+          if (coin) {
+              data.push({
+                  name: coin.symbol.toUpperCase(),
+                  value: asset.amount * coin.current_price,
+                  color: palette[index % palette.length]
+              });
+          }
+      });
+      return data.filter(d => d.value > 1); // Filter out dust
+  }, [wallet, coins]);
+
   // Unified Trade Execution Logic
-  const executeTrade = (coin: Coin, type: 'buy' | 'sell', amountUSD: number, isAuto: boolean = false, reason?: string) => {
+  const executeTrade = (coin: Coin, type: 'buy' | 'sell', amountUSD: number, isAuto: boolean = false, reason?: string, confidence?: number) => {
       const price = coin.current_price;
       const amountCoin = amountUSD / price;
 
@@ -256,7 +326,8 @@ function App() {
           totalValue: amountUSD,
           timestamp: Date.now(),
           isAutoTrade: isAuto,
-          aiReason: reason
+          aiReason: reason,
+          aiConfidence: confidence
       };
       setTransactions(prev => [newTransaction, ...prev]);
 
@@ -282,7 +353,34 @@ function App() {
     }
     executeTrade(selectedCoin, tradeType, amountUSD, false);
   };
+
+  const handleCreateAlert = () => {
+      if (!alertTargetCoin || !alertTargetPrice) return;
+      const price = parseFloat(alertTargetPrice);
+      if (isNaN(price) || price <= 0) return;
+
+      const newAlert: PriceAlert = {
+          id: Date.now().toString(),
+          coinId: alertTargetCoin.id,
+          symbol: alertTargetCoin.symbol,
+          targetPrice: price,
+          condition: price > alertTargetCoin.current_price ? 'above' : 'below',
+          createdAt: Date.now()
+      };
+      
+      setPriceAlerts(prev => [...prev, newAlert]);
+      setNotification({ message: `Alert set for ${alertTargetCoin.symbol.toUpperCase()} at $${price}`, type: 'success' });
+      setIsAlertModalOpen(false);
+      setAlertTargetCoin(null);
+      setAlertTargetPrice('');
+  };
   
+  const openAlertModal = (coin: Coin) => {
+      setAlertTargetCoin(coin);
+      setAlertTargetPrice(coin.current_price.toString());
+      setIsAlertModalOpen(true);
+  };
+
   // Handle opening trade modal from detail view
   const openTradeFromDetail = (type: 'buy' | 'sell') => {
       if (viewingCoin) {
@@ -296,6 +394,13 @@ function App() {
 
   const formatDate = (timestamp: number) => 
     new Date(timestamp).toLocaleDateString() + ' ' + new Date(timestamp).toLocaleTimeString();
+
+  const getConfidenceBadge = (conf?: number) => {
+      if (!conf) return null;
+      if (conf >= 80) return <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 rounded">High Conf.</span>;
+      if (conf >= 50) return <span className="text-[10px] bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-1.5 rounded">Med Conf.</span>;
+      return <span className="text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 rounded">Low Conf.</span>;
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans selection:bg-primary/30">
@@ -486,15 +591,38 @@ function App() {
                     </div>
                     
                     {activeView === 'market' && (
-                        <div className="relative w-full sm:w-64 group">
-                            <input 
-                                type="text" 
-                                placeholder="Search coins..." 
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-primary/50 focus:bg-white/10 text-white transition-all shadow-inner"
-                            />
-                            <Search className="absolute left-3 top-3 text-slate-500 group-focus-within:text-primary transition-colors" size={16} />
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            {/* Filter Buttons */}
+                            <div className="flex bg-white/5 border border-white/10 rounded-xl p-1">
+                                <button 
+                                    onClick={() => setFilterType('all')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterType === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                >
+                                    All
+                                </button>
+                                <button 
+                                    onClick={() => setFilterType('gainers')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterType === 'gainers' ? 'bg-emerald-500/20 text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-emerald-400'}`}
+                                >
+                                    Gainers
+                                </button>
+                                <button 
+                                    onClick={() => setFilterType('losers')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterType === 'losers' ? 'bg-rose-500/20 text-rose-400 shadow-sm' : 'text-slate-400 hover:text-rose-400'}`}
+                                >
+                                    Losers
+                                </button>
+                            </div>
+                            <div className="relative flex-1 sm:w-64 group">
+                                <input 
+                                    type="text" 
+                                    placeholder="Search coins..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full h-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-primary/50 focus:bg-white/10 text-white transition-all shadow-inner"
+                                />
+                                <Search className="absolute left-3 top-3 text-slate-500 group-focus-within:text-primary transition-colors" size={16} />
+                            </div>
                         </div>
                     )}
                 </div>
@@ -532,6 +660,7 @@ function App() {
                         coin={viewingCoin} 
                         onBack={() => setViewingCoin(null)} 
                         onTrade={openTradeFromDetail}
+                        onSetAlert={openAlertModal}
                     />
                 ) : filteredCoins.length === 0 && !searchTerm ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-4">
@@ -554,7 +683,7 @@ function App() {
                             key={coin.id} 
                             onClick={() => setViewingCoin(coin)}
                             className={`
-                                cursor-pointer group relative overflow-hidden rounded-2xl border p-5 backdrop-blur-xl transition-all duration-300 ease-out will-change-transform
+                                cursor-pointer group relative overflow-hidden rounded-2xl border p-5 backdrop-blur-xl transition-all duration-300 ease-out will-change-transform flex flex-col justify-between
                                 ${aiThinkingCoin === coin.id 
                                     ? 'border-primary/60 bg-primary/10 shadow-[0_0_30px_rgba(139,92,246,0.25)] scale-[1.03] ring-1 ring-primary/30' 
                                     : 'border-white/5 bg-gradient-to-br from-white/[0.05] via-white/[0.01] to-black/20 hover:border-primary/40 hover:bg-slate-800/80 hover:scale-[1.03] hover:shadow-[0_0_35px_-5px_rgba(139,92,246,0.4)] hover:ring-1 hover:ring-primary/20'
@@ -572,53 +701,76 @@ function App() {
 
                             {/* Card Hover Glow Effects */}
                             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-                            <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-700 translate-x-10 group-hover:translate-x-0 pointer-events-none"></div>
                             
-                            <div className="flex justify-between items-start mb-4 relative z-10">
-                                <div className="flex items-center gap-3">
-                                    <div className="relative group-hover:scale-110 transition-transform duration-300">
-                                        <img src={coin.image} alt={coin.name} className="w-11 h-11 rounded-full bg-slate-800 shadow-lg ring-2 ring-white/5 group-hover:ring-primary/30 transition-all" />
+                            <div>
+                                <div className="flex justify-between items-start mb-4 relative z-10">
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative group-hover:scale-110 transition-transform duration-300">
+                                            <img src={coin.image} alt={coin.name} className="w-11 h-11 rounded-full bg-slate-800 shadow-lg ring-2 ring-white/5 group-hover:ring-primary/30 transition-all" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <h3 className="font-bold text-slate-100 text-base group-hover:text-white transition-colors truncate">{coin.name}</h3>
+                                            <span className="text-xs text-slate-400 uppercase font-mono tracking-wider group-hover:text-primary/80 transition-colors">{coin.symbol}</span>
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <h3 className="font-bold text-slate-100 text-base group-hover:text-white transition-colors truncate">{coin.name}</h3>
-                                        <span className="text-xs text-slate-400 uppercase font-mono tracking-wider group-hover:text-primary/80 transition-colors">{coin.symbol}</span>
+                                    <span className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold shadow-sm transition-transform group-hover:scale-105 ${coin.price_change_percentage_24h >= 0 ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'}`}>
+                                        {coin.price_change_percentage_24h >= 0 ? <ArrowUpRight size={12} strokeWidth={3}/> : <ArrowDownRight size={12} strokeWidth={3}/>}
+                                        {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
+                                    </span>
+                                </div>
+                                
+                                <div className="flex items-baseline justify-between mt-2 relative z-10">
+                                    <div className="text-2xl font-mono font-bold text-white tracking-tight drop-shadow-sm group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-slate-300 transition-all">
+                                        {formatCurrency(coin.current_price)}
                                     </div>
                                 </div>
-                                <span className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold shadow-sm transition-transform group-hover:scale-105 ${coin.price_change_percentage_24h >= 0 ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border border-rose-500/20'}`}>
-                                    {coin.price_change_percentage_24h >= 0 ? <ArrowUpRight size={12} strokeWidth={3}/> : <ArrowDownRight size={12} strokeWidth={3}/>}
-                                    {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
-                                </span>
-                            </div>
-                            
-                            <div className="flex items-baseline justify-between mt-2 relative z-10">
-                                <div className="text-2xl font-mono font-bold text-white tracking-tight drop-shadow-sm group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-slate-300 transition-all">
-                                    {formatCurrency(coin.current_price)}
-                                </div>
-                            </div>
 
-                            {/* High / Low 24h Stats */}
-                            <div className="flex gap-4 mt-1 mb-2 text-[10px] font-mono text-slate-500 relative z-10">
-                                <span className="flex items-center gap-1"><span className="text-emerald-500/80">H:</span> {formatCurrency(coin.high_24h)}</span>
-                                <span className="flex items-center gap-1"><span className="text-rose-500/80">L:</span> {formatCurrency(coin.low_24h)}</span>
+                                {/* High / Low 24h Stats */}
+                                <div className="flex gap-4 mt-1 mb-2 text-[10px] font-mono text-slate-500 relative z-10">
+                                    <span className="flex items-center gap-1"><span className="text-emerald-500/80">H:</span> {formatCurrency(coin.high_24h)}</span>
+                                    <span className="flex items-center gap-1"><span className="text-rose-500/80">L:</span> {formatCurrency(coin.low_24h)}</span>
+                                </div>
                             </div>
                             
-                            <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between gap-2 md:gap-4 relative z-10">
-                                <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden sm:block group-hover:text-slate-400 transition-colors">
-                                    MCap ${(coin.market_cap / 1e9).toFixed(1)}B
-                                </div>
-                                <div className="flex gap-2 w-full sm:w-auto opacity-80 group-hover:opacity-100 transition-opacity delay-75">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setSelectedCoin(coin); setTradeType('buy'); }}
-                                        className="flex-1 sm:flex-none px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold transition-all uppercase tracking-wider hover:shadow-[0_0_15px_rgba(52,211,153,0.3)] hover:-translate-y-0.5"
-                                    >
-                                        Buy
-                                    </button>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setSelectedCoin(coin); setTradeType('sell'); }}
-                                        className="flex-1 sm:flex-none px-4 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition-all uppercase tracking-wider hover:shadow-[0_0_15px_rgba(244,63,94,0.3)] hover:-translate-y-0.5"
-                                    >
-                                        Sell
-                                    </button>
+                            {/* Sparkline & Actions */}
+                            <div className="relative z-10 mt-auto">
+                                {/* Sparkline */}
+                                {coin.sparkline_in_7d && (
+                                    <div className="h-10 w-full mb-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={coin.sparkline_in_7d.price.map((p, i) => ({ i, p }))}>
+                                                <Line 
+                                                    type="monotone" 
+                                                    dataKey="p" 
+                                                    stroke={coin.price_change_percentage_24h >= 0 ? '#10b981' : '#f43f5e'} 
+                                                    strokeWidth={2} 
+                                                    dot={false}
+                                                    isAnimationActive={false} // Performance
+                                                />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                        <div className="text-[9px] text-slate-600 text-right mt-1">7d Trend</div>
+                                    </div>
+                                )}
+
+                                <div className="border-t border-white/5 pt-3 flex items-center justify-between gap-2 md:gap-4">
+                                    <div className="text-[10px] text-slate-500 font-mono uppercase tracking-wider hidden sm:block group-hover:text-slate-400 transition-colors">
+                                        MCap ${(coin.market_cap / 1e9).toFixed(1)}B
+                                    </div>
+                                    <div className="flex gap-2 w-full sm:w-auto opacity-80 group-hover:opacity-100 transition-opacity delay-75">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setSelectedCoin(coin); setTradeType('buy'); }}
+                                            className="flex-1 sm:flex-none px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold transition-all uppercase tracking-wider hover:shadow-[0_0_15px_rgba(52,211,153,0.3)] hover:-translate-y-0.5"
+                                        >
+                                            Buy
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setSelectedCoin(coin); setTradeType('sell'); }}
+                                            className="flex-1 sm:flex-none px-4 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition-all uppercase tracking-wider hover:shadow-[0_0_15px_rgba(244,63,94,0.3)] hover:-translate-y-0.5"
+                                        >
+                                            Sell
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -631,26 +783,65 @@ function App() {
             {/* PORTFOLIO VIEW */}
             {!isLoading && activeView === 'portfolio' && (
                 <div className="space-y-6">
-                    {/* Balance Card */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-gradient-to-br from-indigo-900/40 to-slate-900/60 border border-white/10 p-6 rounded-2xl backdrop-blur-md relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-                            <div className="flex items-center gap-2 text-slate-400 mb-2 relative z-10">
-                                <DollarSign size={18} />
-                                <span className="text-sm font-semibold uppercase tracking-wider">Available USD Balance</span>
+                    {/* Balance Card & Chart */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-gradient-to-br from-indigo-900/40 to-slate-900/60 border border-white/10 p-6 rounded-2xl backdrop-blur-md relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                                <div className="flex items-center gap-2 text-slate-400 mb-2 relative z-10">
+                                    <DollarSign size={18} />
+                                    <span className="text-sm font-semibold uppercase tracking-wider">Available USD Balance</span>
+                                </div>
+                                <div className="text-3xl md:text-4xl font-mono font-bold text-white relative z-10">
+                                    {formatCurrency(wallet.usdBalance)}
+                                </div>
                             </div>
-                            <div className="text-3xl md:text-4xl font-mono font-bold text-white relative z-10">
-                                {formatCurrency(wallet.usdBalance)}
+                            <div className="bg-gradient-to-br from-primary/10 to-slate-900/60 border border-white/10 p-6 rounded-2xl backdrop-blur-md relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                                <div className="flex items-center gap-2 text-slate-400 mb-2 relative z-10">
+                                    <Activity size={18} />
+                                    <span className="text-sm font-semibold uppercase tracking-wider">Total Asset Value</span>
+                                </div>
+                                <div className="text-3xl md:text-4xl font-mono font-bold text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)] relative z-10">
+                                    {formatCurrency(portfolioValue - wallet.usdBalance)}
+                                </div>
                             </div>
                         </div>
-                        <div className="bg-gradient-to-br from-primary/10 to-slate-900/60 border border-white/10 p-6 rounded-2xl backdrop-blur-md relative overflow-hidden group">
-                             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-                            <div className="flex items-center gap-2 text-slate-400 mb-2 relative z-10">
-                                <Activity size={18} />
-                                <span className="text-sm font-semibold uppercase tracking-wider">Total Asset Value</span>
-                            </div>
-                            <div className="text-3xl md:text-4xl font-mono font-bold text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)] relative z-10">
-                                {formatCurrency(portfolioValue - wallet.usdBalance)}
+
+                        {/* Allocation Pie Chart */}
+                        <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[200px]">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider w-full text-left mb-2 flex items-center gap-2"><PieChartIcon size={14}/> Allocation</h3>
+                            <div className="w-full h-[180px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={pieChartData}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={50}
+                                            outerRadius={70}
+                                            paddingAngle={2}
+                                            dataKey="value"
+                                            stroke="none"
+                                        >
+                                            {pieChartData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                            ))}
+                                        </Pie>
+                                        <Legend 
+                                            layout="vertical" 
+                                            verticalAlign="middle" 
+                                            align="right"
+                                            iconSize={8}
+                                            wrapperStyle={{ fontSize: '10px', fontFamily: 'monospace' }}
+                                        />
+                                        <Tooltip 
+                                            contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
+                                            itemStyle={{ color: '#fff' }}
+                                            formatter={(value: number) => formatCurrency(value)}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
                     </div>
@@ -768,8 +959,9 @@ function App() {
                                         </div>
                                     </div>
                                     {tx.aiReason && (
-                                        <div className="text-xs text-slate-400 bg-white/5 p-2 rounded-lg italic">
-                                            "{tx.aiReason}"
+                                        <div className="text-xs text-slate-400 bg-white/5 p-2 rounded-lg italic flex justify-between items-center">
+                                            <span>"{tx.aiReason}"</span>
+                                            {getConfidenceBadge(tx.aiConfidence)}
                                         </div>
                                     )}
                                 </div>
@@ -815,8 +1007,15 @@ function App() {
                                             {formatCurrency(tx.totalValue)}
                                         </div>
                                         <div className="col-span-2 text-right pr-2">
-                                            <div className="text-xs text-slate-500 font-mono">{formatDate(tx.timestamp)}</div>
-                                            {tx.aiReason && <div className="text-[10px] text-primary/80 italic mt-0.5 truncate max-w-[200px] ml-auto" title={tx.aiReason}>{tx.aiReason}</div>}
+                                            <div className="text-xs text-slate-500 font-mono mb-1">{formatDate(tx.timestamp)}</div>
+                                            {tx.aiReason && (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <span className="text-[10px] text-primary/80 italic truncate max-w-[150px]" title={tx.aiReason}>
+                                                        {tx.aiReason}
+                                                    </span>
+                                                    {getConfidenceBadge(tx.aiConfidence)}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))
@@ -914,9 +1113,55 @@ function App() {
             </div>
         )}
 
+        {/* Set Alert Modal */}
+        {isAlertModalOpen && alertTargetCoin && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+                <div className="bg-slate-900 border border-white/10 w-full max-w-sm rounded-2xl shadow-2xl p-6 relative">
+                    <button 
+                        onClick={() => setIsAlertModalOpen(false)} 
+                        className="absolute top-4 right-4 text-slate-400 hover:text-white"
+                    >
+                        <X size={20} />
+                    </button>
+                    
+                    <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+                        <BellRing size={20} className="text-primary"/> Set Price Alert
+                    </h3>
+                    <p className="text-sm text-slate-400 mb-6">
+                        Notify me when {alertTargetCoin.name} hits:
+                    </p>
+
+                    <div className="space-y-4">
+                        <div className="relative group">
+                            <DollarSign size={16} className="absolute left-3 top-3.5 text-slate-500" />
+                            <input 
+                                type="number" 
+                                value={alertTargetPrice}
+                                onChange={(e) => setAlertTargetPrice(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 rounded-xl py-3 pl-9 pr-4 text-white font-mono focus:border-primary/50 focus:outline-none"
+                                placeholder="Target Price"
+                            />
+                        </div>
+                        
+                        <div className="p-3 bg-white/5 rounded-lg text-xs text-slate-400 flex justify-between">
+                             <span>Current Price:</span>
+                             <span className="text-white font-mono">{formatCurrency(alertTargetCoin.current_price)}</span>
+                        </div>
+
+                        <button 
+                            onClick={handleCreateAlert}
+                            className="w-full py-3 rounded-xl bg-primary hover:bg-violet-600 text-white font-bold transition-all"
+                        >
+                            Create Alert
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Notification Toast */}
         {notification && (
-            <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-6 px-6 py-4 rounded-xl shadow-2xl backdrop-blur-xl border animate-in fade-in slide-in-from-bottom-5 duration-300 flex items-center gap-3 z-[60] ${notification.type === 'info' ? 'bg-slate-800/90 border-slate-600 text-white' : (notification.type === 'success' ? 'bg-emerald-900/80 border-emerald-500/30 text-emerald-100' : 'bg-rose-900/80 border-rose-500/30 text-rose-100')}`}>
+            <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-6 px-6 py-4 rounded-xl shadow-2xl backdrop-blur-xl border animate-in fade-in slide-in-from-bottom-5 duration-300 flex items-center gap-3 z-[70] ${notification.type === 'info' ? 'bg-slate-800/90 border-slate-600 text-white' : (notification.type === 'success' ? 'bg-emerald-900/80 border-emerald-500/30 text-emerald-100' : 'bg-rose-900/80 border-rose-500/30 text-rose-100')}`}>
                 {notification.type === 'info' ? <Bot size={20} className="text-primary"/> : <CheckCircle size={20} className={notification.type === 'success' ? 'text-emerald-400' : 'text-rose-400'} />}
                 <span className="font-medium">{notification.message}</span>
             </div>

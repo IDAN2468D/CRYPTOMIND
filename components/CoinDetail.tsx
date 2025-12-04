@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, Activity, DollarSign, BarChart3, Globe, Clock, Wallet, TrendingUp, Maximize2, Info } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, Activity, DollarSign, BarChart3, Globe, Clock, Wallet, TrendingUp, Maximize2, Info, Bell } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Brush } from 'recharts';
 import { Coin } from '../types';
 import { getCoinHistory, ChartDataPoint } from '../services/cryptoService';
@@ -8,9 +9,10 @@ interface CoinDetailProps {
   coin: Coin;
   onBack: () => void;
   onTrade: (type: 'buy' | 'sell') => void;
+  onSetAlert: (coin: Coin) => void;
 }
 
-export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade }) => {
+export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade, onSetAlert }) => {
   const [historyData, setHistoryData] = useState<ChartDataPoint[]>([]);
   const [timeframe, setTimeframe] = useState<string | number>('1h'); 
   const [isLoading, setIsLoading] = useState(true);
@@ -61,8 +63,15 @@ export const CoinDetail: React.FC<CoinDetailProps> = ({ coin, onBack, onTrade })
         </div>
         
         {/* Quick Actions (Desktop) */}
-        <div className="hidden md:flex gap-2">
-             <div className="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-white/5 flex items-center gap-2 text-xs text-slate-400">
+        <div className="flex gap-2">
+             <button 
+                onClick={() => onSetAlert(coin)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-700 border border-white/5 flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
+             >
+                <Bell size={14} />
+                <span className="hidden sm:inline font-mono">Set Alert</span>
+             </button>
+             <div className="hidden md:flex px-3 py-1.5 rounded-lg bg-slate-800/50 border border-white/5 items-center gap-2 text-xs text-slate-400">
                 <Clock size={14} />
                 <span className="font-mono">Real-time Data</span>
                 <span className="relative flex h-2 w-2">

@@ -1,6 +1,18 @@
+
 import { Coin } from '../types';
 
 const API_URL = 'https://api.coingecko.com/api/v3';
+
+// Helper to generate mock sparkline
+const generateMockSparkline = (startPrice: number): number[] => {
+    const points = [];
+    let price = startPrice;
+    for(let i=0; i<168; i++) { // 7 days * 24 hours
+        price = price * (1 + (Math.random() * 0.04 - 0.02));
+        points.push(price);
+    }
+    return points;
+};
 
 const MOCK_COINS: Coin[] = [
   {
@@ -13,7 +25,8 @@ const MOCK_COINS: Coin[] = [
     market_cap: 1200000000000,
     total_volume: 35000000000,
     high_24h: 65000,
-    low_24h: 63000
+    low_24h: 63000,
+    sparkline_in_7d: { price: generateMockSparkline(62000) }
   },
   {
     id: "ethereum",
@@ -23,9 +36,10 @@ const MOCK_COINS: Coin[] = [
     current_price: 3450.12,
     price_change_percentage_24h: 1.15,
     market_cap: 400000000000,
-    total_volume: 15000000000,
+    total_volume: 1500000000,
     high_24h: 3550,
-    low_24h: 3400
+    low_24h: 3400,
+    sparkline_in_7d: { price: generateMockSparkline(3300) }
   },
   {
     id: "solana",
@@ -37,7 +51,8 @@ const MOCK_COINS: Coin[] = [
     market_cap: 65000000000,
     total_volume: 4000000000,
     high_24h: 155,
-    low_24h: 142
+    low_24h: 142,
+    sparkline_in_7d: { price: generateMockSparkline(150) }
   },
   {
     id: "binancecoin",
@@ -49,7 +64,8 @@ const MOCK_COINS: Coin[] = [
     market_cap: 87000000000,
     total_volume: 1200000000,
     high_24h: 595,
-    low_24h: 585
+    low_24h: 585,
+    sparkline_in_7d: { price: generateMockSparkline(580) }
   },
   {
     id: "ripple",
@@ -61,7 +77,8 @@ const MOCK_COINS: Coin[] = [
     market_cap: 34000000000,
     total_volume: 1100000000,
     high_24h: 0.63,
-    low_24h: 0.61
+    low_24h: 0.61,
+    sparkline_in_7d: { price: generateMockSparkline(0.60) }
   },
   {
     id: "cardano",
@@ -73,7 +90,8 @@ const MOCK_COINS: Coin[] = [
     market_cap: 16000000000,
     total_volume: 400000000,
     high_24h: 0.46,
-    low_24h: 0.44
+    low_24h: 0.44,
+    sparkline_in_7d: { price: generateMockSparkline(0.42) }
   },
   {
     id: "dogecoin",
@@ -85,7 +103,8 @@ const MOCK_COINS: Coin[] = [
     market_cap: 17000000000,
     total_volume: 2000000000,
     high_24h: 0.13,
-    low_24h: 0.11
+    low_24h: 0.11,
+    sparkline_in_7d: { price: generateMockSparkline(0.10) }
   },
   {
     id: "polkadot",
@@ -97,15 +116,16 @@ const MOCK_COINS: Coin[] = [
     market_cap: 10000000000,
     total_volume: 200000000,
     high_24h: 7.50,
-    low_24h: 7.10
+    low_24h: 7.10,
+    sparkline_in_7d: { price: generateMockSparkline(7.40) }
   }
 ];
 
 export async function getMarketData(page = 1, perPage = 100): Promise<Coin[]> {
   try {
-    // Attempt to fetch real data
+    // Attempt to fetch real data with sparkline=true
     const response = await fetch(
-      `${API_URL}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=24h`
+      `${API_URL}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=true&price_change_percentage=24h`
     );
     
     // Check if response is OK. If 429 (Too Many Requests) or other error, throw to catch block.
