@@ -6,8 +6,7 @@ let aiInstance: GoogleGenAI | null = null;
 
 function getAiClient() {
     if (!aiInstance) {
-        // Direct access allows Vite to perform static replacement of 'process.env.API_KEY'
-        // We fallback to empty string only if the replacement is undefined/empty
+        // The API key must be obtained exclusively from the environment variable process.env.API_KEY
         const apiKey = process.env.API_KEY || '';
         
         if (!apiKey) {
