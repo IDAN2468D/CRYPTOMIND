@@ -6,13 +6,12 @@ let aiInstance: GoogleGenAI | null = null;
 
 function getAiClient() {
     if (!aiInstance) {
-        // SAFETY CHECK: Handle environments where 'process' is not defined to prevent white screen crash
-        const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) 
-            ? process.env.API_KEY 
-            : '';
+        // Direct access allows Vite to perform static replacement of 'process.env.API_KEY'
+        // We fallback to empty string only if the replacement is undefined/empty
+        const apiKey = process.env.API_KEY || '';
         
         if (!apiKey) {
-            console.warn("API Key is missing in getAiClient");
+            console.warn("API Key is missing in getAiClient. Ensure API_KEY is set in your environment variables.");
         }
             
         aiInstance = new GoogleGenAI({ apiKey: apiKey });
