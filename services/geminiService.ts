@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Content, Part, Schema, Type } from "@google/genai";
 import { Message, Role, Coin, PortfolioItem, TradeDecision } from '../types';
 
@@ -7,10 +8,17 @@ let aiInstance: GoogleGenAI | null = null;
 function getAiClient() {
     if (!aiInstance) {
         // The API key must be obtained exclusively from the environment variable process.env.API_KEY
-        const apiKey = process.env.API_KEY || '';
+        // We handle potential undefined 'process' in the browser via try-catch or checks
+        let apiKey = '';
+        try {
+            apiKey = process.env.API_KEY || '';
+        } catch (e) {
+            console.warn("Error accessing process.env.API_KEY", e);
+        }
         
         if (!apiKey) {
             console.warn("API Key is missing in getAiClient. Ensure API_KEY is set in your environment variables.");
+            throw new Error("API Key is missing. Please configure API_KEY in your environment variables.");
         }
             
         aiInstance = new GoogleGenAI({ apiKey: apiKey });
@@ -71,10 +79,23 @@ export async function* streamGeminiResponse(
     }
   } catch (error: any) {
     console.error("Gemini API Error:", error);
+    
+    // Construct a more descriptive error message for the user
     let errorMsg = "CONNECTION ERROR: Neural link unstable.";
-    if (error.message?.includes('API key')) {
-        errorMsg = "AUTH ERROR: Invalid or Missing API Key.";
+    
+    if (error.message) {
+        if (error.message.includes('API key') || error.message.includes('403')) {
+            errorMsg = "AUTH ERROR: Invalid or Missing API Key. Please check your settings.";
+        } else if (error.message.includes('429')) {
+            errorMsg = "OVERLOAD: Neural capacity reached (Rate Limit). Please wait.";
+        } else if (error.message.includes('fetch failed')) {
+            errorMsg = "NETWORK ERROR: Unable to reach Gemini servers.";
+        } else {
+            // Include the actual error text for debugging
+            errorMsg = `SYSTEM ERROR: ${error.message}`;
+        }
     }
+    
     yield errorMsg;
   }
 }
