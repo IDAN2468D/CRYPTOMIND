@@ -10,6 +10,10 @@ function getAiClient() {
         const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) 
             ? process.env.API_KEY 
             : '';
+        
+        if (!apiKey) {
+            console.warn("API Key is missing in getAiClient");
+        }
             
         aiInstance = new GoogleGenAI({ apiKey: apiKey });
     }
@@ -67,9 +71,13 @@ export async function* streamGeminiResponse(
         yield text;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
-    yield "CONNECTION ERROR: Neural link unstable. Verify API credentials.";
+    let errorMsg = "CONNECTION ERROR: Neural link unstable.";
+    if (error.message?.includes('API key')) {
+        errorMsg = "AUTH ERROR: Invalid or Missing API Key.";
+    }
+    yield errorMsg;
   }
 }
 
@@ -159,7 +167,21 @@ export async function getAutoTradeDecision(
         if (e.message?.includes('429') || e.status === 429) {
              return { decision: 'HOLD', amountUSD: 0, reason: "Rate Limit Cooldown", confidence: 0 };
         }
+        
+        // Detailed Error Handling for UI
+        let errorReason = "Neural Link Error";
+        if (e.message) {
+            if (e.message.includes("API key")) {
+                errorReason = "Missing/Invalid API Key";
+            } else if (e.message.includes("fetch failed") || e.message.includes("NetworkError")) {
+                errorReason = "Network Connection Failed";
+            } else {
+                // Return actual error but truncated
+                errorReason = e.message.length > 25 ? e.message.substring(0, 25) + "..." : e.message;
+            }
+        }
+        
         console.error("Auto-trade decision failed", e);
-        return { decision: 'HOLD', amountUSD: 0, reason: "Neural Link Error", confidence: 0 };
+        return { decision: 'HOLD', amountUSD: 0, reason: errorReason, confidence: 0 };
     }
 }
