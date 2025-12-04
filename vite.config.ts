@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => {
       console.log("✅ API_KEY found and injected.");
   }
 
+  // Render sets the PORT environment variable. We must listen on this port.
+  const port = Number(env.PORT) || Number(process.env.PORT) || 5173;
+
   return {
     plugins: [react()],
     define: {
@@ -28,12 +31,12 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       host: true,
-      port: 5173,
+      port: port,
       allowedHosts: true,
     },
     preview: {
       host: true,
-      port: 5173,
+      port: port,
       allowedHosts: true,
     },
   };
