@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Send, Bot, User, Sparkles, BrainCircuit, Info, X, Lightbulb, TrendingUp, ShieldAlert, BarChart3, Trash2 } from 'lucide-react';
 import { Message, Role } from '../types';
 import { streamGeminiResponse } from '../services/geminiService';
@@ -6,9 +7,11 @@ import { ThinkingIndicator } from './ThinkingIndicator';
 
 interface ChatInterfaceProps {
   onClose?: () => void;
+  externalTrigger?: { text: string; useThinking: boolean } | null;
+  onClearTrigger?: () => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose, externalTrigger, onClearTrigger }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -45,6 +48,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
     }
   }, [messages]);
 
+  // Handle External Triggers (e.g. from Portfolio Audit button)
+  useEffect(() => {
+      if (externalTrigger && !isLoading) {
+          setIsThinkingMode(externalTrigger.useThinking);
+          setInputValue(externalTrigger.text);
+          // We need a slight delay to allow state to settle before sending
+          const timer = setTimeout(() => {
+             handleSendMessage(externalTrigger.text, externalTrigger.useThinking);
+             if (onClearTrigger) onClearTrigger();
+          }, 100);
+          return () => clearTimeout(timer);
+      }
+  }, [externalTrigger, isLoading]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -53,13 +70,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+  const handleSendMessage = async (overrideText?: string, overrideThinking?: boolean) => {
+    const textToSend = overrideText || inputValue;
+    const thinkingState = overrideThinking !== undefined ? overrideThinking : isThinkingMode;
+
+    if (!textToSend.trim() || isLoading) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
       role: Role.USER,
-      text: inputValue.trim(),
+      text: textToSend.trim(),
       timestamp: Date.now()
     };
 
@@ -74,12 +94,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
       role: Role.MODEL,
       text: '', 
       timestamp: Date.now(),
-      isThinking: isThinkingMode
+      isThinking: thinkingState
     }]);
 
     try {
       const historyForApi = messages.filter(m => m.id !== botMsgId);
-      const stream = streamGeminiResponse(historyForApi, userMsg.text, isThinkingMode);
+      const stream = streamGeminiResponse(historyForApi, userMsg.text, thinkingState);
       
       let fullText = '';
       for await (const chunk of stream) {
@@ -230,7 +250,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
             disabled={isLoading}
           />
           <button
-            onClick={handleSendMessage}
+            onClick={() => handleSendMessage()}
             disabled={!inputValue.trim() || isLoading}
             className={`
               absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors

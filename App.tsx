@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChatInterface } from './components/ChatInterface';
 import { CoinDetail } from './components/CoinDetail';
-import { Activity, TrendingUp, DollarSign, Wallet, Menu, Search, X, ArrowUpRight, ArrowDownRight, CreditCard, RefreshCw, History, CheckCircle, Bot, ChevronRight, Play, Pause, Zap, BrainCircuit, ShieldAlert, Filter, Bell, PieChart as PieChartIcon, BellRing } from 'lucide-react';
+import { Activity, TrendingUp, DollarSign, Wallet, Menu, Search, X, ArrowUpRight, ArrowDownRight, CreditCard, RefreshCw, History, CheckCircle, Bot, ChevronRight, Play, Pause, Zap, BrainCircuit, ShieldAlert, Filter, Bell, PieChart as PieChartIcon, BellRing, ScanSearch } from 'lucide-react';
 import { getMarketData } from './services/cryptoService';
 import { getAutoTradeDecision } from './services/geminiService';
 import { Coin, UserWallet, PortfolioItem, Transaction, TradeDecision, PriceAlert } from './types';
@@ -23,6 +23,7 @@ function App() {
   // Mobile UI State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
+  const [chatTrigger, setChatTrigger] = useState<{text: string, useThinking: boolean} | null>(null);
 
   // Auto-Trading State
   const [isAutoTrading, setIsAutoTrading] = useState(false);
@@ -381,12 +382,36 @@ function App() {
       setIsAlertModalOpen(true);
   };
 
-  // Handle opening trade modal from detail view
   const openTradeFromDetail = (type: 'buy' | 'sell') => {
       if (viewingCoin) {
           setSelectedCoin(viewingCoin);
           setTradeType(type);
       }
+  };
+
+  const triggerDeepPortfolioAudit = () => {
+      const assetSummary = Object.values(wallet.assets).map((a: PortfolioItem) => {
+          const coin = coins.find(c => c.id === a.coinId);
+          return `${a.symbol}: ${a.amount} units (Avg Buy: $${a.averageBuyPrice})`;
+      }).join(', ');
+      
+      const prompt = `Perform a Deep Portfolio Audit (Thinking Mode Active).
+      
+      Current Portfolio:
+      USD Balance: $${wallet.usdBalance}
+      Assets: ${assetSummary || "None"}
+      
+      Total Portfolio Value: $${portfolioValue}
+      
+      Tasks:
+      1. Analyze diversification and risk exposure.
+      2. Identify correlation risks between assets.
+      3. Suggest a rebalancing strategy based on current market volatility.
+      4. Predict potential downside in a bear market scenario.
+      `;
+      
+      setChatTrigger({ text: prompt, useThinking: true });
+      setIsMobileChatOpen(true);
   };
 
   const formatCurrency = (val: number) => 
@@ -809,8 +834,18 @@ function App() {
                         </div>
 
                         {/* Allocation Pie Chart */}
-                        <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[200px]">
-                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider w-full text-left mb-2 flex items-center gap-2"><PieChartIcon size={14}/> Allocation</h3>
+                        <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[200px] relative">
+                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider w-full text-left mb-2 flex items-center gap-2"><PieChartIcon size={14}/> Allocation</h3>
+                            
+                            {/* NEW FEATURE: Deep Audit Button */}
+                            <button 
+                                onClick={triggerDeepPortfolioAudit}
+                                className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-2.5 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 hover:border-primary/50 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all animate-in fade-in"
+                                title="Run Deep AI Analysis on Portfolio"
+                            >
+                                <BrainCircuit size={12} /> Deep Audit
+                            </button>
+
                             <div className="w-full h-[180px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
@@ -1175,7 +1210,11 @@ function App() {
         md:relative md:translate-x-0 md:bg-transparent md:backdrop-blur-none md:z-0 md:block md:w-auto
         ${isMobileChatOpen ? 'translate-x-0' : 'translate-x-full'}
       `}>
-          <ChatInterface onClose={() => setIsMobileChatOpen(false)} />
+          <ChatInterface 
+            onClose={() => setIsMobileChatOpen(false)} 
+            externalTrigger={chatTrigger}
+            onClearTrigger={() => setChatTrigger(null)}
+          />
       </div>
       
     </div>

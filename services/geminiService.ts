@@ -28,7 +28,7 @@ function getAiClient() {
 
 /**
  * Sends a message to Gemini and yields chunks of the response.
- * Uses gemini-3-pro-preview for advanced reasoning.
+ * Dynamically switches between Flash (fast) and Pro (thinking) models.
  */
 export async function* streamGeminiResponse(
   history: Message[],
@@ -48,8 +48,9 @@ export async function* streamGeminiResponse(
     parts: [{ text: newMessage }],
   });
 
-  // Configure the model
-  const modelId = 'gemini-3-pro-preview';
+  // Select Model based on mode
+  // gemini-3-pro-preview is required for Thinking Config
+  const modelId = useThinking ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
   
   // Setup configuration
   const config: any = {
@@ -58,9 +59,14 @@ export async function* streamGeminiResponse(
 
   if (useThinking) {
     // Deep Thinking Configuration
+    // We do NOT set maxOutputTokens here to allow full reasoning chains
     config.thinkingConfig = { 
       thinkingBudget: 32768 // Max budget for gemini-3-pro-preview
     };
+  } else {
+      // Standard config for Flash model
+      config.temperature = 0.7;
+      config.topK = 40;
   }
 
   try {
@@ -87,7 +93,7 @@ export async function* streamGeminiResponse(
         if (error.message.includes('API key') || error.message.includes('403')) {
             errorMsg = "AUTH ERROR: Invalid or Missing API Key. Please check your settings.";
         } else if (error.message.includes('429')) {
-            errorMsg = "OVERLOAD: Neural capacity reached (Rate Limit). Please wait.";
+            errorMsg = "OVERLOAD: Neural capacity reached (Rate Limit). Please wait a moment.";
         } else if (error.message.includes('fetch failed')) {
             errorMsg = "NETWORK ERROR: Unable to reach Gemini servers.";
         } else {
